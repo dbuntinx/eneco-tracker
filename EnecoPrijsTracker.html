@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gastarieven">
+<title>Eneco Gastarieven</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg: #0c0f14;
+    --surface: #13181f;
+    --border: #1e2530;
+    --accent: #f59e0b;
+    --accent-glow: rgba(245,158,11,0.15);
+    --blue: #38bdf8;
+    --green: #34d399;
+    --red: #f87171;
+    --text: #dde3ed;
+    --muted: #6b7a8f;
+    --card: #171c25;
+    --purple: #a78bfa;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    min-height: 100vh;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Topbar */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 20px;
+    padding-top: calc(14px + env(safe-area-inset-top));
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+  .pip { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); display: inline-block; }
+  .topbar-title { font-weight: 700; font-size: 13px; letter-spacing: .06em; }
+  .topbar-sub { color: var(--muted); font-size: 11px; }
+  .spacer { flex: 1; }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+    letter-spacing: .04em;
+    white-space: nowrap;
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 7px 13px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .btn-danger { color: var(--red); border-color: rgba(248,113,113,.3); }
+
+  /* Main layout */
+  .main { max-width: 600px; margin: 0 auto; padding: 20px 16px 60px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* Cards */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+  }
+  .card-label {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  /* KPI grid */
+  .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kpi {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 14px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-label { font-size: 10px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 10px; }
+  .kpi-value { font-size: 18px; font-weight: 700; line-height: 1.1; }
+  .kpi-sub { font-size: 10px; color: var(--muted); margin-top: 6px; }
+  .kpi-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 2px; opacity: .5; }
+
+  /* Recent 3 */
+  .recent-grid { display: grid; gap: 10px; }
+  .recent-cell {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .recent-cell.current { border-color: var(--accent); background: var(--accent-glow); }
+  .recent-label { font-size: 10px; font-weight: 700; letter-spacing: .06em; margin-bottom: 10px; }
+  .recent-price { font-size: 16px; font-weight: 700; }
+  .recent-price span { font-size: 10px; font-weight: 400; color: var(--muted); }
+  .recent-sub-label { font-size: 10px; color: var(--muted); margin-bottom: 2px; margin-top: 8px; }
+  .badge { display: inline-block; background: rgba(245,158,11,.2); color: var(--accent); padding: 1px 7px; border-radius: 4px; font-size: 9px; margin-left: 6px; vertical-align: middle; }
+
+  /* Chart */
+  .chart-wrap { position: relative; height: 200px; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); font-weight: 600; }
+  td { padding: 9px 8px; border-bottom: 1px solid rgba(30,37,48,.5); vertical-align: middle; }
+  .td-actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+  /* Empty state */
+  .empty { text-align: center; padding: 36px 0; color: var(--muted); }
+  .empty-icon { font-size: 32px; margin-bottom: 12px; }
+  .empty-hint { font-size: 11px; margin-top: 8px; }
+
+  /* Modal overlay */
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.75);
+    z-index: 100;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px 20px 0 0;
+    padding: 28px 24px;
+    padding-bottom: calc(28px + env(safe-area-inset-bottom));
+    width: 100%;
+    max-width: 600px;
+    animation: slideUp .25s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(60px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .modal-title { font-weight: 700; color: var(--accent); font-size: 14px; margin-bottom: 22px; }
+
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 10px; color: var(--muted); letter-spacing: .07em; text-transform: uppercase; margin-bottom: 6px; }
+  .field label span { color: var(--accent); }
+  .field label small { color: rgba(107,122,143,.6); font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .inp {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 14px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    width: 100%;
+    outline: none;
+    -webkit-appearance: none;
+  }
+  .inp:focus { border-color: var(--accent); }
+  select.inp { cursor: pointer; }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+  /* Legend dots */
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 10px; color: var(--muted); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; vertical-align: middle; }
+
+  /* footer */
+  .footer { font-size: 10px; color: rgba(107,122,143,.5); text-align: center; }
+  .footer a { color: rgba(56,189,248,.6); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<!-- Topbar -->
+<div class="topbar">
+  <span class="pip"></span>
+  <span class="topbar-title">ENECO AARDGAS FLEX</span>
+  <span class="topbar-sub">/ tarieven</span>
+  <div class="spacer"></div>
+  <button class="btn-primary" onclick="openForm()">+ Invoeren</button>
+</div>
+
+<div class="main">
+
+  <!-- KPI cards -->
+  <div class="kpi-grid" id="kpiGrid">
+    <!-- JS rendered -->
+  </div>
+
+  <!-- Recente 3 maanden -->
+  <div class="card" id="recentCard" style="display:none">
+    <div class="card-label">Laatste 3 maanden</div>
+    <div class="recent-grid" id="recentGrid"></div>
+  </div>
+
+  <!-- Grafiek -->
+  <div class="card" id="chartCard" style="display:none">
+    <div class="card-label">Tariefevolutie — totaalprijs/kWh</div>
+    <div class="chart-wrap"><canvas id="myChart"></canvas></div>
+    <div class="legend">
+      <span><span class="legend-dot" style="background:var(--accent)"></span>totaalprijs</span>
+      <span><span class="legend-dot" style="background:var(--muted)"></span>energiecomp.</span>
+      <span><span class="legend-dot" style="background:var(--blue)"></span>gem. 6m</span>
+      <span><span class="legend-dot" style="background:var(--purple)"></span>gem. 12m</span>
+    </div>
+  </div>
+
+  <!-- Tabel -->
+  <div class="card">
+    <div class="card-label" id="tableLabel">Alle tarieven</div>
+    <div id="tableWrap">
+      <div class="empty">
+        <div class="empty-icon">📋</div>
+        <div>Nog geen tarieven ingevoerd.</div>
+        <div class="empty-hint">Haal de tariefkaart op via<br><a href="https://eneco.be/nl/elektriciteit-gas/tariefkaarten/" target="_blank" style="color:var(--blue)">eneco.be › Tariefkaarten</a></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Tarieven ophalen ·
+    <a href="https://eneco.be/nl/elektriciteit-gas/tariefkaarten/" target="_blank">eneco.be › Tariefkaarten</a><br>
+    Historisch 2021–2026 beschikbaar als PDF-bundel
+  </div>
+
+</div>
+
+<!-- Modal -->
+<div class="overlay" id="overlay" onclick="handleOverlayClick(event)">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle">Nieuw maandtarief</div>
+    <input type="hidden" id="editKey">
+
+    <div class="row2">
+      <div class="field">
+        <label>Jaar</label>
+        <select class="inp" id="fYear"></select>
+      </div>
+      <div class="field">
+        <label>Maand</label>
+        <select class="inp" id="fMonth">
+          <option value="0">januari</option><option value="1">februari</option>
+          <option value="2">maart</option><option value="3">april</option>
+          <option value="4">mei</option><option value="5">juni</option>
+          <option value="6">juli</option><option value="7">augustus</option>
+          <option value="8">september</option><option value="9">oktober</option>
+          <option value="10">november</option><option value="11">december</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Totaalprijs /kWh <span>*</span> <small>incl. nettarieven, belastingen</small></label>
+      <input class="inp" type="number" id="fTotal" step="0.00001" placeholder="bv. 0.09240" inputmode="decimal">
+    </div>
+
+    <div class="field">
+      <label>Energiecomponent /kWh <small>optioneel, excl. nettarieven</small></label>
+      <input class="inp" type="number" id="fEnergy" step="0.00001" placeholder="bv. 0.06650" inputmode="decimal">
+    </div>
+
+    <div class="field">
+      <label>Nota <small>optioneel</small></label>
+      <input class="inp" type="text" id="fLabel" placeholder="bv. tariefkaart ref.">
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeForm()">Annuleren</button>
+      <button class="btn-primary" onclick="saveEntry()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'eneco-gas-flex-v2';
+const MONTHS = ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
+const MONTHS_FULL = ['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
+
+let entries = [];
+let chartInstance = null;
+
+// ── Storage ──────────────────────────────────────────────
+function load() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+}
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); }
+function entryKey(e) { return `${e.year}-${e.month}`; }
+function sorted() {
+  return [...entries].sort((a,b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
+}
+
+// ── Formatting ───────────────────────────────────────────
+function fmt(v, decimals=5) {
+  const n = parseFloat(v);
+  return isNaN(n) || n === 0 ? '—' : `€\u00a0${n.toFixed(decimals)}`;
+}
+function fmtShort(v) { return fmt(v, 4); }
+function monthLabel(y, m) { return `${MONTHS[m]} '${String(y).slice(2)}`; }
+
+// ── Rolling average ───────────────────────────────────────
+function rollingAvg(arr, months, field) {
+  const slice = arr.slice(-months);
+  const vals = slice.map(e => parseFloat(e[field])).filter(v => !isNaN(v) && v > 0);
+  if (!vals.length) return null;
+  return vals.reduce((a,b) => a+b, 0) / vals.length;
+}
+
+// ── Render ────────────────────────────────────────────────
+function render() {
+  const s = sorted();
+  const n = s.length;
+  const cur = s[n-1];
+  const prev = s[n-2];
+  const recent3 = s.slice(-3);
+  const avg6 = rollingAvg(s, 6, 'total');
+  const avg12 = rollingAvg(s, 12, 'total');
+  const diff = cur && prev && cur.total && prev.total
+    ? parseFloat(cur.total) - parseFloat(prev.total) : null;
+
+  renderKPIs(cur, diff, avg6, avg12);
+  renderRecent(recent3);
+  renderChart(s, avg6, avg12);
+  renderTable(s);
+}
+
+function renderKPIs(cur, diff, avg6, avg12) {
+  const diffColor = diff === null ? 'var(--muted)' : diff > 0 ? 'var(--red)' : diff < 0 ? 'var(--green)' : 'var(--muted)';
+  const diffLabel = diff === null ? 'te weinig data' : diff > 0 ? '▲ duurder' : diff < 0 ? '▼ goedkoper' : 'gelijk';
+  const diffVal = diff !== null ? `${diff > 0 ? '+' : ''}${diff.toFixed(5)}` : '—';
+
+  const kpis = [
+    { label: 'Huidige maand', val: cur ? fmtShort(cur.total) : '—', sub: cur ? monthLabel(cur.year, cur.month) : 'geen data', color: 'var(--accent)', glow: true },
+    { label: 'vs vorige maand', val: diffVal, sub: diffLabel, color: diffColor, glow: false },
+    { label: 'Gemiddelde 6m', val: avg6 ? `€ ${avg6.toFixed(5)}` : '—', sub: 'totaalprijs/kWh', color: 'var(--blue)', glow: false },
+    { label: 'Gemiddelde 12m', val: avg12 ? `€ ${avg12.toFixed(5)}` : '—', sub: 'totaalprijs/kWh', color: 'var(--purple)', glow: false },
+  ];
+
+  document.getElementById('kpiGrid').innerHTML = kpis.map(k => `
+    <div class="kpi" style="${k.glow ? 'border-color:rgba(245,158,11,.4);box-shadow:0 0 20px var(--accent-glow)' : ''}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value" style="color:${k.color}">${k.val}</div>
+      <div class="kpi-sub">${k.sub}</div>
+      <div class="kpi-bar" style="background:linear-gradient(90deg,${k.color},transparent)"></div>
+    </div>
+  `).join('');
+}
+
+function renderRecent(recent3) {
+  const card = document.getElementById('recentCard');
+  if (!recent3.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  // On mobile, show stacked (1 col); on wider, show columns
+  const grid = document.getElementById('recentGrid');
+  const cols = recent3.length;
+  grid.style.gridTemplateColumns = window.innerWidth > 420 ? `repeat(${cols}, 1fr)` : '1fr';
+
+  grid.innerHTML = recent3.map((e, i) => {
+    const isLatest = i === recent3.length - 1;
+    return `
+      <div class="recent-cell ${isLatest ? 'current' : ''}">
+        <div class="recent-label" style="color:${isLatest ? 'var(--accent)' : 'var(--muted)'}">
+          ${monthLabel(e.year, e.month).toUpperCase()}
+          ${isLatest ? '<span class="badge">NU</span>' : ''}
+        </div>
+        <div class="recent-sub-label">totaalprijs</div>
+        <div class="recent-price" style="color:${isLatest ? 'var(--text)' : 'var(--muted)'}">
+          ${fmtShort(e.total)}<span>/kWh</span>
+        </div>
+        ${e.energy ? `<div class="recent-sub-label">energiecomp.</div><div style="color:var(--muted);font-size:12px">${fmtShort(e.energy)}</div>` : ''}
+        ${e.label ? `<div style="font-size:10px;color:var(--muted);font-style:italic;margin-top:8px">${e.label}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function renderChart(s, avg6, avg12) {
+  const chartCard = document.getElementById('chartCard');
+  if (s.length < 2) { chartCard.style.display = 'none'; return; }
+  chartCard.style.display = '';
+
+  const labels = s.map(e => monthLabel(e.year, e.month));
+  const totalData = s.map(e => parseFloat(e.total) || null);
+  const energyData = s.map(e => parseFloat(e.energy) || null);
+
+  const datasets = [
+    {
+      label: 'Totaalprijs',
+      data: totalData,
+      borderColor: '#f59e0b',
+      backgroundColor: 'rgba(245,158,11,0.08)',
+      borderWidth: 2.5,
+      pointRadius: 4,
+      pointBackgroundColor: '#f59e0b',
+      tension: 0.3,
+      spanGaps: true,
+    },
+  ];
+
+  if (energyData.some(v => v !== null)) {
+    datasets.push({
+      label: 'Energiecomponent',
+      data: energyData,
+      borderColor: '#6b7a8f',
+      borderWidth: 1.5,
+      borderDash: [5, 4],
+      pointRadius: 2,
+      pointBackgroundColor: '#6b7a8f',
+      tension: 0.3,
+      spanGaps: true,
+    });
+  }
+
+  // Add avg reference lines as extra datasets
+  if (avg6) {
+    datasets.push({ label: 'Gem. 6m', data: s.map(() => avg6), borderColor: '#38bdf8', borderWidth: 1, borderDash: [6, 4], pointRadius: 0, tension: 0 });
+  }
+  if (avg12) {
+    datasets.push({ label: 'Gem. 12m', data: s.map(() => avg12), borderColor: '#a78bfa', borderWidth: 1, borderDash: [6, 4], pointRadius: 0, tension: 0 });
+  }
+
+  const ctx = document.getElementById('myChart').getContext('2d');
+  if (chartInstance) chartInstance.destroy();
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#171c25',
+          borderColor: '#1e2530',
+          borderWidth: 1,
+          titleColor: '#f59e0b',
+          bodyColor: '#dde3ed',
+          callbacks: {
+            label: ctx => ctx.parsed.y !== null ? `${ctx.dataset.label}: € ${ctx.parsed.y.toFixed(5)}/kWh` : '',
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#6b7a8f', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: '#1e2530' } },
+        y: {
+          ticks: { color: '#6b7a8f', font: { family: 'JetBrains Mono', size: 10 }, callback: v => `€${v.toFixed(3)}` },
+          grid: { color: '#1e2530' }
+        }
+      }
+    }
+  });
+}
+
+function renderTable(s) {
+  document.getElementById('tableLabel').textContent = `Alle tarieven (${s.length} maanden)`;
+  const wrap = document.getElementById('tableWrap');
+
+  if (!s.length) {
+    wrap.innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">📋</div>
+        <div>Nog geen tarieven ingevoerd.</div>
+        <div class="empty-hint">Haal de tariefkaart op via<br><a href="https://eneco.be/nl/elektriciteit-gas/tariefkaarten/" target="_blank" style="color:var(--blue)">eneco.be › Tariefkaarten</a></div>
+      </div>`;
+    return;
+  }
+
+  const rows = [...s].reverse().map((e, i) => {
+    const isLatest = i === 0;
+    return `
+      <tr>
+        <td style="color:${isLatest ? 'var(--accent)' : 'var(--text)'};font-weight:${isLatest ? 700 : 400}">
+          ${monthLabel(e.year, e.month)}${isLatest ? ' <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);vertical-align:middle"></span>' : ''}
+        </td>
+        <td style="color:${isLatest ? 'var(--text)' : 'var(--muted)'}; font-weight:${isLatest ? 700 : 400}">${fmt(e.total)}</td>
+        <td style="color:var(--muted)">${e.energy ? fmt(e.energy) : '<span style="color:#1e2530">—</span>'}</td>
+        <td class="td-actions">
+          <button class="btn-ghost" onclick='editEntry(${JSON.stringify(e)})'>✎</button>
+          <button class="btn-ghost btn-danger" onclick='deleteEntry("${entryKey(e)}")'>✕</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  wrap.innerHTML = `
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>Maand</th><th>Totaal/kWh</th><th>Energie/kWh</th><th></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+// ── Form ──────────────────────────────────────────────────
+function openForm(e) {
+  document.getElementById('modalTitle').textContent = 'Nieuw maandtarief';
+  document.getElementById('editKey').value = '';
+  document.getElementById('fYear').value = new Date().getFullYear();
+  document.getElementById('fMonth').value = new Date().getMonth();
+  document.getElementById('fTotal').value = '';
+  document.getElementById('fEnergy').value = '';
+  document.getElementById('fLabel').value = '';
+  document.getElementById('overlay').classList.add('open');
+  setTimeout(() => document.getElementById('fTotal').focus(), 300);
+}
+
+function closeForm() {
+  document.getElementById('overlay').classList.remove('open');
+}
+
+function handleOverlayClick(ev) {
+  if (ev.target === document.getElementById('overlay')) closeForm();
+}
+
+function editEntry(e) {
+  document.getElementById('modalTitle').textContent = 'Tarief bewerken';
+  document.getElementById('editKey').value = entryKey(e);
+  document.getElementById('fYear').value = e.year;
+  document.getElementById('fMonth').value = e.month;
+  document.getElementById('fTotal').value = e.total || '';
+  document.getElementById('fEnergy').value = e.energy || '';
+  document.getElementById('fLabel').value = e.label || '';
+  document.getElementById('overlay').classList.add('open');
+}
+
+function saveEntry() {
+  const total = document.getElementById('fTotal').value.trim();
+  if (!total) { document.getElementById('fTotal').focus(); return; }
+
+  const entry = {
+    year: parseInt(document.getElementById('fYear').value),
+    month: parseInt(document.getElementById('fMonth').value),
+    total,
+    energy: document.getElementById('fEnergy').value.trim(),
+    label: document.getElementById('fLabel').value.trim(),
+  };
+
+  const ek = entryKey(entry);
+  const existingEditKey = document.getElementById('editKey').value;
+
+  if (existingEditKey) {
+    entries = entries.map(e => entryKey(e) === existingEditKey ? entry : e);
+  } else {
+    const exists = entries.findIndex(e => entryKey(e) === ek);
+    if (exists >= 0) entries[exists] = entry;
+    else entries.push(entry);
+  }
+
+  save();
+  closeForm();
+  render();
+}
+
+function deleteEntry(key) {
+  if (!confirm('Verwijder dit tarief?')) return;
+  entries = entries.filter(e => entryKey(e) !== key);
+  save();
+  render();
+}
+
+// ── Init ──────────────────────────────────────────────────
+// Populate year select
+(function() {
+  const sel = document.getElementById('fYear');
+  for (let y = 2021; y <= 2027; y++) {
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = y;
+    if (y === new Date().getFullYear()) opt.selected = true;
+    sel.appendChild(opt);
+  }
+})();
+
+entries = load();
+render();
+
+window.addEventListener('resize', () => {
+  const s = sorted();
+  if (s.length >= 3) renderRecent(s.slice(-3));
+});
+</script>
+</body>
+</html>
